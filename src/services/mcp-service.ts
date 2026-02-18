@@ -41,7 +41,8 @@ export class MCPService {
     const response = await fetch(server.endpoint, {
       method,
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json', 
+        "Accept": "application/json, text/event-stream",
         ...(server.headers || {})
       },
       body: method === 'GET' ? undefined : JSON.stringify(body),

@@ -2,6 +2,7 @@ import * as tl from "azure-pipelines-task-lib/task";
 import { ReviewOrchestrator } from './services/review-orchestrator';
 import https from 'https';
 import { MCPServerConfig } from './types/mcp';
+import { AzureAISearchConfig } from './services/azure-ai-search-service';
 
 async function run() {
   try {
@@ -25,6 +26,12 @@ async function run() {
     const azureOpenAIApiVersion = tl.getInput('azure_openai_api_version') || '2024-02-15-preview';
     const useResponsesApi = tl.getBoolInput('azure_openai_use_responses_api');
     const mcpServersRaw = tl.getInput('mcp_servers');
+
+    // Get Azure AI Search configuration (optional)
+    const azureAISearchEndpoint = tl.getInput('azure_ai_search_endpoint');
+    const azureAISearchApiKey = tl.getInput('azure_ai_search_api_key');
+    const azureAISearchApiVersion = tl.getInput('azure_ai_search_api_version') || '2023-11-01';
+    const azureAISearchIndexName = tl.getInput('azure_ai_search_index_name') || 'codebase-index';
 
     let mcpServers: MCPServerConfig[] = [];
     if (mcpServersRaw) {
@@ -57,6 +64,12 @@ async function run() {
       return;
     }
 
+    // Validate Azure AI Search configuration (if endpoint is provided, key is required)
+    if (azureAISearchEndpoint && !azureAISearchApiKey) {
+      tl.setResult(tl.TaskResult.Failed, 'Azure AI Search API key is required when search endpoint is provided!');
+      return;
+    }
+
     // Validate configuration values
     if (maxLLMCalls < 1 || maxLLMCalls > 1000) {
       tl.setResult(tl.TaskResult.Failed, 'Maximum LLM calls must be between 1 and 1000!');
@@ -73,6 +86,17 @@ async function run() {
       rejectUnauthorized: !supportSelfSignedCertificate
     });
 
+    // Create Azure AI Search configuration if provided
+    let searchConfig: AzureAISearchConfig | undefined;
+    if (azureAISearchEndpoint && azureAISearchApiKey) {
+      searchConfig = {
+        endpoint: azureAISearchEndpoint,
+        apiKey: azureAISearchApiKey,
+        apiVersion: azureAISearchApiVersion,
+        indexName: azureAISearchIndexName
+      };
+    }
+
     console.log("📋 Configuration:");
     console.log(`  - Azure OpenAI Endpoint: ${azureOpenAIEndpoint}`);
     console.log(`  - Deployment Name: ${deploymentName}`);
@@ -83,6 +107,11 @@ async function run() {
     console.log(`  - OpenAI API Version: ${azureOpenAIApiVersion}`);
     console.log(`  - Use Responses API: ${useResponsesApi ? 'Yes' : 'No'}`);
     console.log(`  - MCP Servers: ${mcpServers.length}`);
+    console.log(`  - Azure AI Search: ${searchConfig ? 'Configured' : 'Not Configured'}`);
+    if (searchConfig) {
+      console.log(`    - Search Endpoint: ${searchConfig.endpoint}`);
+      console.log(`    - Search Index: ${searchConfig.indexName}`);
+    }
     console.log(`  - Self-signed Certificates: ${supportSelfSignedCertificate ? 'Supported' : 'Not Supported'}`);
 
     // Create and run the review orchestrator
@@ -97,7 +126,8 @@ async function run() {
       enableSecurityScanning,
       azureOpenAIApiVersion,
       useResponsesApi,
-      mcpServers
+      mcpServers,
+      searchConfig
     );
 
     console.log("🔍 Starting comprehensive PR review...");

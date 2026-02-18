@@ -15,7 +15,7 @@ param(
 )
 
 try {
-    Write-Host "Starting GenAIAdvancedPRReviewer task on Windows..."
+    Write-Host "Starting AerosealAIReviewer task on Windows..."
     
     # Check if Node.js is available
     $nodeVersion = node --version 2>$null

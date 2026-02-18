@@ -5,6 +5,7 @@ import { AzureDevOpsService, PRDetails } from './azure-devops-service';
 import { getTargetBranchName, getSourceBranchName } from '../utils';
 import { MCPService } from './mcp-service';
 import { MCPServerConfig } from '../types/mcp';
+import { AzureAISearchService, AzureAISearchConfig } from './azure-ai-search-service';
 
 export interface ReviewResult {
   success: boolean;
@@ -26,6 +27,7 @@ export class ReviewOrchestrator {
   private enableCodeSuggestions: boolean;
   private enableSecurityScanning: boolean;
   private mcpService: MCPService;
+  private searchService?: AzureAISearchService;
   private fileLineMappings: Map<string, Map<number, { originalLine: number; modifiedLine: number; isAdded: boolean; isRemoved: boolean; isContext: boolean }>> = new Map();
   private fallbackGeneralCommentFiles: Set<string> = new Set();
 
@@ -40,7 +42,8 @@ export class ReviewOrchestrator {
     enableSecurityScanning: boolean = true,
     azureOpenAIApiVersion: string = '2024-02-15-preview',
     useResponsesApi: boolean = false,
-    mcpServers: MCPServerConfig[] = []
+    mcpServers: MCPServerConfig[] = [],
+    searchConfig?: AzureAISearchConfig
   ) {
     this.httpsAgent = httpsAgent;
     this.azureDevOpsService = new AzureDevOpsService(httpsAgent);
@@ -58,6 +61,14 @@ export class ReviewOrchestrator {
     this.enableCodeSuggestions = enableCodeSuggestions;
     this.enableSecurityScanning = enableSecurityScanning;
     this.mcpService = new MCPService(mcpServers);
+    
+    // Initialize Azure AI Search service if configuration is provided
+    if (searchConfig && searchConfig.endpoint && searchConfig.apiKey) {
+      this.searchService = new AzureAISearchService(searchConfig, httpsAgent);
+      console.log('✅ Azure AI Search service initialized for codebase impact analysis');
+    } else {
+      console.log('ℹ️ Azure AI Search not configured - skipping codebase impact analysis');
+    }
   }
 
   public async runFullReview(): Promise<ReviewResult> {
@@ -73,6 +84,14 @@ export class ReviewOrchestrator {
       await this.azureDevOpsService.testCorrectedUrlStructure();
       await this.azureDevOpsService.testBaseUrlConnectivity();
       await this.azureDevOpsService.testApiConnectivity();
+      
+      // Test Azure AI Search connectivity if configured
+      if (this.searchService) {
+        const searchConnected = await this.searchService.testConnection();
+        if (!searchConnected) {
+          console.warn('⚠️ Azure AI Search connection failed - continuing without impact analysis');
+        }
+      }
       
       // Step 3: Get PR details and context
       const prDetails = await this.azureDevOpsService.getPullRequestDetails();
@@ -237,6 +256,28 @@ export class ReviewOrchestrator {
           });
           if (externalContext.length > 0) {
             console.log(`🔗 Received ${externalContext.length} context item(s) from MCP servers for ${filePath}`);
+          }
+        }
+
+        // Get codebase impact analysis from Azure AI Search if configured
+        if (this.searchService) {
+          try {
+            console.log(`🔍 Analyzing codebase impact for ${filePath}...`);
+            const impactAnalysis = await this.searchService.analyzeCodeImpact(
+              filePath,
+              fileDiff,
+              fileContent.content || ''
+            );
+            
+            if (impactAnalysis.length > 0) {
+              const impactContext = this.searchService.formatImpactAnalysis(impactAnalysis);
+              externalContext.push(impactContext);
+              console.log(`🎯 Found ${impactAnalysis.length} identifiers with potential codebase impact for ${filePath}`);
+            } else {
+              console.log(`✅ No significant codebase impact detected for ${filePath}`);
+            }
+          } catch (error) {
+            console.warn(`⚠️ Failed to analyze codebase impact for ${filePath}:`, error);
           }
         }
 

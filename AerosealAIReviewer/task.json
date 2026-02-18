@@ -1,9 +1,9 @@
 {
-  "id": "a1b2c3d4-c4a6-11ed-87f6-d1f44a1fead1",
-  "name": "GenAIAdvancedPRReviewer",
+  "id": "a1b2c3d4-c4a6-11ed-87f6-d1f44a1fead2",
+  "name": "AerosealAIReviewer",
   "friendlyName": "Advanced PR Reviewer",
   "description": "Advanced Pull Request reviewer using Azure OpenAI and LangGraph React agent for precise, intelligent code reviews",
-  "author": "Advanced PR Reviewer Team",
+  "author": "Aeroseal",
   "helpMarkDown": "[More Information](https://github.com/advanced-pr-reviewer)",
   "category": "Utility",
   "visibility": [
@@ -11,9 +11,9 @@
   ],
   "demands": [],
   "version": {
-    "Major": "2",
-    "Minor": "74",
-    "Patch": "0"
+    "Major": "3",
+    "Minor": "0",
+    "Patch": "4"
   },
   "minimumAgentVersion": "1.95.0",
   "instanceNameFormat": "Advanced PR Reviewer $(message)",
@@ -105,6 +105,38 @@
       "defaultValue": "false",
       "required": false,
       "helpMarkDown": "Select this option to support self-signed certificates"
+    },
+    {
+      "name": "azure_ai_search_endpoint",
+      "type": "string",
+      "label": "Azure AI Search Endpoint",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Azure AI Search endpoint URL (e.g., https://your-search-service.search.windows.net). Optional - enables codebase impact analysis."
+    },
+    {
+      "name": "azure_ai_search_api_key",
+      "type": "string",
+      "label": "Azure AI Search API Key",
+      "defaultValue": "",
+      "required": false,
+      "helpMarkDown": "Azure AI Search admin API key for authentication. Required if search endpoint is provided."
+    },
+    {
+      "name": "azure_ai_search_api_version",
+      "type": "string",
+      "label": "Azure AI Search API Version",
+      "defaultValue": "2023-11-01",
+      "required": false,
+      "helpMarkDown": "Azure AI Search API version (default: 2023-11-01)"
+    },
+    {
+      "name": "azure_ai_search_index_name",
+      "type": "string",
+      "label": "Azure AI Search Index Name",
+      "defaultValue": "codebase-index",
+      "required": false,
+      "helpMarkDown": "Name of the Azure AI Search index containing the codebase (default: codebase-index)"
     }
   ],
   "execution": {

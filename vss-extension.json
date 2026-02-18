@@ -1,11 +1,11 @@
 {
     "manifestVersion": 1,
-    "id": "GenAIAdvancedPRReviewer",
-    "name": "Gen AI Advanced PR Reviewer",
-    "version": "2.74.0",
-    "publisher": "abozar",
+    "id": "AerosealAIReviewer",
+    "name": "Aeroseal AI Reviewer",
+    "version": "3.0.4",
+    "publisher": "Aeroseal",
     "galleryFlags": [
-        "Public",
+        "Private",
         "Preview"
     ],
     "targets": [ 
@@ -31,28 +31,28 @@
     ],
     "files": [
         {
-            "path": "GenAIAdvancedPRReviewer",
+            "path": "AerosealAIReviewer",
             "addressable": true
         }
     ],
     "repository" : {
         "type" : "git",
-        "uri" : "https://github.com/abozaralizadeh/azure-pipeline-gpt-pr-review"
+        "uri" : "https://github.com/andrewzhao12/azure-pipeline-gpt-pr-review"
     },
     "content": {
         "details": {
-            "path": "GenAIAdvancedPRReviewer/README.md"
+            "path": "AerosealAIReviewer/README.md"
         }
     },
     "contributions": [
         {
-            "id": "GenAIAdvancedPRReviewer",
+            "id": "AerosealAIReviewer",
             "type": "ms.vss-distributed-task.task",
             "targets": [
                 "ms.vss-distributed-task.tasks"
             ],
             "properties": {
-                "name": "GenAIAdvancedPRReviewer"
+                "name": "AerosealAIReviewer"
             }
         }
     ]

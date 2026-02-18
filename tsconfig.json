@@ -3,7 +3,7 @@
     "target": "ES2020",
     "module": "commonjs",
     "lib": ["ES2020"],
-    "outDir": "./GenAIAdvancedPRReviewer/dist",
+    "outDir": "./AerosealAIReviewer/dist",
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
