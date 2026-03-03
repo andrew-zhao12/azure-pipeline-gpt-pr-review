@@ -31,6 +31,13 @@ export interface CodeElement {
   endLine: number;
 }
 
+export interface ComponentElement {
+  name: string;
+  type: 'component';
+  startLine: number;
+  endLine: number;
+}
+
 export interface SearchBody {
   search: string;
   select?: string;
