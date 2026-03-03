@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { Agent } from 'node:https';
 import { AzureAISearchConfig, CodeReference, SearchBody } from '../types/azure-search';
 
@@ -27,8 +26,7 @@ export class AzureAISearchClient {
           'Content-Type': 'application/json',
           'api-key': this.config.apiKey
         },
-        body: JSON.stringify(searchBody),
-        agent: this.httpsAgent
+        body: JSON.stringify(searchBody)
       });
 
       if (!response.ok) {
@@ -72,8 +70,7 @@ export class AzureAISearchClient {
       const response = await fetch(url, {
         headers: {
           'api-key': this.config.apiKey
-        },
-        agent: this.httpsAgent
+        }
       });
 
       if (response.ok) {

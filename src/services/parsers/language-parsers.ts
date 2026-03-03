@@ -59,7 +59,8 @@ export class CSharpParser implements LanguageParser {
       }
 
       // Match method declarations (including constructors)
-      match = line.match(/(?:public|private|protected|internal)?\s*(?:static|virtual|override|abstract|async)?\s*(?:\w+\s+)?(\w+)\s*\([^)]*\)\s*(?:where\s+.*?)?\s*[{;]/i);
+      // First try to match methods with opening brace on same line
+      match = line.match(/(?:public|private|protected|internal)?\s*(?:static|virtual|override|abstract|async)?\s*(?:[\w<>\[\]]+\s+)?(\w+)\s*\([^)]*\)\s*(?:where\s+.*?)?\s*[{;]/i);
       if (match) {
         const methodName = match[1];
         
@@ -73,6 +74,26 @@ export class CSharpParser implements LanguageParser {
             startLine: lineNumber,
             endLine: endLine
           });
+        }
+      } else {
+        // Try to match method declarations without opening brace (multi-line declarations)
+        match = line.match(/(?:public|private|protected|internal)?\s*(?:static|virtual|override|abstract|async)?\s*(?:[\w<>\[\]]+\s+)?(\w+)\s*\([^)]*\)\s*(?:where\s+.*?)?\s*$/i);
+        if (match && i + 1 < lines.length) {
+          const nextLine = lines[i + 1].trim();
+          if (nextLine.startsWith('{')) {
+            const methodName = match[1];
+            // Skip property accessors and common keywords
+            const skipKeywords = ['get', 'set', 'add', 'remove', 'if', 'while', 'for', 'foreach', 'switch', 'using', 'try', 'catch'];
+            if (!skipKeywords.includes(methodName.toLowerCase())) {
+              const endLine = this.findBlockEnd(lines, i + 1);
+              elements.push({
+                name: methodName,
+                type: 'function',
+                startLine: lineNumber,
+                endLine: endLine
+              });
+            }
+          }
         }
       }
     }

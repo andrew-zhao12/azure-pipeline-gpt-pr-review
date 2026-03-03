@@ -1,1 +1,513 @@
-﻿import { LanguageParserFactory, CSharpParser, RazorParser, TypeScriptParser } from '../services/parsers/language-parsers';\nimport { CodeElement, ComponentElement } from '../types/azure-search';\n\ndescribe('Language-Specific Parsers', () => {\n  \n  describe('LanguageParserFactory', () => {\n    it('should return correct parser for C# files', () => {\n      const parser = LanguageParserFactory.getParser('src/Services/OrderService.cs');\n      expect(parser).toBeInstanceOf(CSharpParser);\n    });\n\n    it('should return correct parser for Razor files', () => {\n      const parser = LanguageParserFactory.getParser('src/Components/UserProfile.razor');\n      expect(parser).toBeInstanceOf(RazorParser);\n    });\n\n    it('should return correct parser for TypeScript files', () => {\n      const parser = LanguageParserFactory.getParser('src/utils/helper.ts');\n      expect(parser).toBeInstanceOf(TypeScriptParser);\n    });\n\n    it('should return TypeScript parser for JavaScript files as fallback', () => {\n      const parser = LanguageParserFactory.getParser('src/scripts/app.js');\n      expect(parser).toBeInstanceOf(TypeScriptParser);\n    });\n\n    it('should return TypeScript parser for unknown file types as fallback', () => {\n      const parser = LanguageParserFactory.getParser('src/config.json');\n      expect(parser).toBeInstanceOf(TypeScriptParser);\n    });\n  });\n\n  describe('CSharpParser', () => {\n    let parser: CSharpParser;\n\n    beforeEach(() => {\n      parser = new CSharpParser();\n    });\n\n    it('should extract C# class names correctly', () => {\n      const code = `\nnamespace OrderProcessing.Services\n{\n    public class OrderService : IOrderService\n    {\n        private readonly ITaxCalculator _taxCalculator;\n        \n        public decimal CalculateTotal(List<OrderItem> items)\n        {\n            return items.Sum(i => i.Price * i.Quantity);\n        }\n        \n        public async Task<Order> ProcessOrderAsync(CreateOrderRequest request)\n        {\n            var order = new Order();\n            order.Items = request.Items;\n            return order;\n        }\n    }\n    \n    public static class ExtensionMethods\n    {\n        public static bool IsValid(this Order order)\n        {\n            return order.Items?.Any() ?? false;\n        }\n    }\n}\n`;\n\n      const identifiers = parser.parseCodeStructure(code, 'OrderService.cs');\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'OrderService',\n          type: 'class'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'ExtensionMethods', \n          type: 'class'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'CalculateTotal',\n          type: 'function'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'ProcessOrderAsync',\n          type: 'function'\n        })\n      );\n    });\n\n    it('should get primary identifiers for affected lines', () => {\n      const code = `\nnamespace OrderProcessing.Services\n{\n    public class OrderService : IOrderService\n    {\n        private readonly ITaxCalculator _taxCalculator;\n        \n        public decimal CalculateTotal(List<OrderItem> items)\n        {\n            return items.Sum(i => i.Price * i.Quantity);\n        }\n        \n        public async Task<Order> ProcessOrderAsync(CreateOrderRequest request)\n        {\n            var order = new Order();\n            order.Items = request.Items;\n            return order;\n        }\n    }\n}\n`;\n\n      const codeStructure = parser.parseCodeStructure(code, 'OrderService.cs');\n      const identifiers = parser.getPrimaryIdentifiers('OrderService.cs', [9, 14], codeStructure);\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'CalculateTotal',\n          type: 'function'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'ProcessOrderAsync',\n          type: 'function'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'OrderService',\n          type: 'class'\n        })\n      );\n    });\n\n    it('should not extract control structures as code elements', () => {\n      const codeWithControlStructures = `\npublic class TestClass\n{\n    public void TestMethod()\n    {\n        if (condition)\n        {\n            for (int i = 0; i < 10; i++)\n            {\n                while (running)\n                {\n                    switch (value)\n                    {\n                        case 1:\n                            break;\n                    }\n                }\n            }\n        }\n        \n        try\n        {\n            DoSomething();\n        }\n        catch (Exception ex)\n        {\n            LogError(ex);\n        }\n        finally\n        {\n            Cleanup();\n        }\n    }\n}\n`;\n\n      const identifiers = parser.parseCodeStructure(codeWithControlStructures, 'TestClass.cs');\n      const names = identifiers.map(id => id.name);\n      \n      expect(names).toContain('TestClass');\n      expect(names).toContain('TestMethod');\n      \n      // Should NOT contain control structures\n      expect(names).not.toContain('if');\n      expect(names).not.toContain('for');\n      expect(names).not.toContain('while');\n      expect(names).not.toContain('switch');\n      expect(names).not.toContain('try');\n      expect(names).not.toContain('catch');\n      expect(names).not.toContain('finally');\n      expect(names).not.toContain('case');\n    });\n  });\n\n  describe('RazorParser', () => {\n    let parser: RazorParser;\n\n    beforeEach(() => {\n      parser = new RazorParser();\n    });\n\n    it('should extract Razor component names and methods correctly', () => {\n      const razorCode = `\n@page "/user-profile/{UserId}"\n@using MyApp.Models\n@inject IUserService UserService\n\n<div class="user-profile">\n    <h2>User Profile for @User?.Name</h2>\n    @if (User != null)\n    {\n        <UserCard User="@User" OnUpdate="@UpdateUser" />\n        <DeleteButton OnClick="@DeleteUser" />\n    }\n</div>\n\n@code {\n    [Parameter] public string UserId { get; set; }\n    [Inject] private ILogger<UserProfile> Logger { get; set; }\n    \n    private UserModel User { get; set; }\n    private bool IsLoading { get; set; }\n    \n    protected override async Task OnInitializedAsync()\n    {\n        IsLoading = true;\n        User = await UserService.GetUserAsync(UserId);\n        IsLoading = false;\n    }\n    \n    private async Task UpdateUser(UserModel updatedUser)\n    {\n        try\n        {\n            await UserService.UpdateAsync(updatedUser);\n            Logger.LogInformation("User updated successfully");\n        }\n        catch (Exception ex)\n        {\n            Logger.LogError(ex, "Failed to update user");\n        }\n    }\n    \n    private async Task DeleteUser()\n    {\n        if (await JSRuntime.InvokeAsync<bool>("confirm", "Delete this user?"))\n        {\n            await UserService.DeleteAsync(UserId);\n            NavigationManager.NavigateTo("/users");\n        }\n    }\n}\n`;\n\n      const codeStructure = parser.parseCodeStructure(razorCode, 'UserProfile.razor');\n      \n      // Razor parser treats the whole file as one component\n      expect(codeStructure).toHaveLength(1);\n      expect(codeStructure[0]).toEqual(\n        expect.objectContaining({\n          name: 'UserProfile',\n          type: 'class'\n        })\n      );\n    });\n\n    it('should get primary identifiers for Razor components', () => {\n      const razorCode = `\n@page "/test"\n<h1>Test Component</h1>\n@code {\n    private void TestMethod() {\n        // test\n    }\n}\n`;\n\n      const codeStructure = parser.parseCodeStructure(razorCode, 'TestComponent.razor');\n      const identifiers = parser.getPrimaryIdentifiers('TestComponent.razor', [1, 5], codeStructure);\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'TestComponent',\n          type: 'component'\n        })\n      );\n    });\n\n    it('should handle Razor syntax without extracting HTML as code elements', () => {\n      const razorWithHtml = `\n@page "/dashboard"\n<div class="dashboard">\n    <header>\n        <h1>Dashboard</h1>\n    </header>\n</div>\n\n@code {\n    private List<DataItem> Data { get; set; }\n    \n    private void SelectItem(DataItem item)\n    {\n        SelectedItem = item;\n    }\n}\n`;\n\n      const codeStructure = parser.parseCodeStructure(razorWithHtml, 'Dashboard.razor');\n      \n      // Razor parser should treat the whole file as one component\n      expect(codeStructure).toHaveLength(1);\n      expect(codeStructure[0].name).toBe('Dashboard');\n      expect(codeStructure[0].type).toBe('class');\n    });\n    });\n  });\n\n  describe('TypeScriptParser', () => {\n    let parser: TypeScriptParser;\n\n    beforeEach(() => {\n      parser = new TypeScriptParser();\n    });\n\n    it('should extract TypeScript functions, classes, and interfaces correctly', () => {\n      const tsCode = `\nexport interface UserData {\n    id: number;\n    name: string;\n    email: string;\n}\n\nexport type UserApiResponse = ApiResponse<UserData>;\n\nexport class UserService {\n    private readonly baseUrl: string;\n    \n    constructor(baseUrl: string) {\n        this.baseUrl = baseUrl;\n    }\n    \n    async getUser(id: number): Promise<UserData> {\n        const response = await fetch(\`\${this.baseUrl}/users/\${id}\`);\n        return response.json();\n    }\n    \n    async updateUser(user: UserData): Promise<void> {\n        await fetch(\`\${this.baseUrl}/users/\${user.id}\`, {\n            method: 'PUT',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify(user)\n        });\n    }\n}\n\nexport const userUtils = {\n    formatUserName(user: UserData): string {\n        return \`\${user.name} (\${user.email})\`;\n    },\n    \n    isValidUser(user: UserData): boolean {\n        return !!(user.id && user.name && user.email);\n    }\n};\n\nexport function createDefaultUser(): UserData {\n    return {\n        id: 0,\n        name: '',\n        email: ''\n    };\n}\n\nconst UserContext = React.createContext<UserData | null>(null);\n\nexport { UserContext };\n`;\n\n      const identifiers = parser.parseCodeStructure(tsCode, 'UserService.ts');\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'UserData',\n          type: 'interface'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'UserService',\n          type: 'class'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'getUser',\n          type: 'function'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'updateUser',\n          type: 'function'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'createDefaultUser',\n          type: 'function'\n        })\n      );\n    });\n\n    it('should get primary identifiers for TypeScript code', () => {\n      const code = `\nexport class ApiService {\n    async getData(): Promise<Data> {\n        // implementation\n    }\n    \n    async saveData(data: Data): Promise<void> {\n        // implementation  \n    }\n}\n`;\n\n      const codeStructure = parser.parseCodeStructure(code, 'ApiService.ts');\n      const identifiers = parser.getPrimaryIdentifiers('ApiService.ts', [3, 7], codeStructure);\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'getData',\n          type: 'function'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'saveData', \n          type: 'function'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'ApiService',\n          type: 'class'\n        })\n      );\n    });\n\n    it('should handle React components and hooks correctly', () => {\n      const reactCode = `\nimport React, { useState, useEffect, useCallback } from 'react';\n\nexport interface UserFormProps {\n    user?: UserData;\n    onSubmit: (user: UserData) => void;\n    onCancel: () => void;\n}\n\nexport const UserForm: React.FC<UserFormProps> = ({ user, onSubmit, onCancel }) => {\n    const [formData, setFormData] = useState<UserData>(user || createDefaultUser());\n    const [isValid, setIsValid] = useState(false);\n    \n    useEffect(() => {\n        setIsValid(validateUser(formData));\n    }, [formData]);\n    \n    const handleSubmit = useCallback((e: React.FormEvent) => {\n        e.preventDefault();\n        if (isValid) {\n            onSubmit(formData);\n        }\n    }, [formData, isValid, onSubmit]);\n    \n    const handleInputChange = (field: keyof UserData, value: string) => {\n        setFormData(prev => ({ ...prev, [field]: value }));\n    };\n    \n    return (\n        <form onSubmit={handleSubmit}>\n            {/* Form content */}\n        </form>\n    );\n};\n\nfunction validateUser(user: UserData): boolean {\n    return user.name.length > 0 && user.email.includes('@');\n}\n\nexport default UserForm;\n`;\n\n      const identifiers = parser.parseCodeStructure(reactCode, 'UserForm.tsx');\n      const names = identifiers.map(id => id.name);\n      \n      expect(names).toContain('UserFormProps');\n      expect(names).toContain('validateUser');\n      \n      // TypeScript parser focuses on interfaces and functions, not React specifics\n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'UserFormProps',\n          type: 'interface'\n        })\n      );\n      \n      expect(identifiers).toContainEqual(\n        expect.objectContaining({\n          name: 'validateUser',\n          type: 'function'\n        })\n      );\n      \n      // Should NOT extract React hooks as code elements\n      expect(names).not.toContain('useState');\n      expect(names).not.toContain('useEffect');\n      expect(names).not.toContain('useCallback');\n    });\n  });\n});
+﻿import { LanguageParserFactory, CSharpParser, RazorParser, TypeScriptParser } from '../services/parsers/language-parsers';
+import { CodeElement, ComponentElement } from '../types/azure-search';
+
+describe('Language-Specific Parsers', () => {
+  
+  describe('LanguageParserFactory', () => {
+    it('should return correct parser for C# files', () => {
+      const parser = LanguageParserFactory.getParser('src/Services/OrderService.cs');
+      expect(parser).toBeInstanceOf(CSharpParser);
+    });
+
+    it('should return correct parser for Razor files', () => {
+      const parser = LanguageParserFactory.getParser('src/Components/UserProfile.razor');
+      expect(parser).toBeInstanceOf(RazorParser);
+    });
+
+    it('should return correct parser for TypeScript files', () => {
+      const parser = LanguageParserFactory.getParser('src/utils/helper.ts');
+      expect(parser).toBeInstanceOf(TypeScriptParser);
+    });
+
+    it('should return TypeScript parser for JavaScript files as fallback', () => {
+      const parser = LanguageParserFactory.getParser('src/scripts/app.js');
+      expect(parser).toBeInstanceOf(TypeScriptParser);
+    });
+
+    it('should return TypeScript parser for unknown file types as fallback', () => {
+      const parser = LanguageParserFactory.getParser('src/config.json');
+      expect(parser).toBeInstanceOf(TypeScriptParser);
+    });
+  });
+
+  describe('CSharpParser', () => {
+    let parser: CSharpParser;
+
+    beforeEach(() => {
+      parser = new CSharpParser();
+    });
+
+    it('should extract C# class names correctly', () => {
+      const code = `
+namespace OrderProcessing.Services
+{
+    public class OrderService : IOrderService
+    {
+        private readonly ITaxCalculator _taxCalculator;
+        
+        public decimal CalculateTotal(List<OrderItem> items)
+        {
+            return items.Sum(i => i.Price * i.Quantity);
+        }
+        
+        public async Task<Order> ProcessOrderAsync(CreateOrderRequest request)
+        {
+            var order = new Order();
+            order.Items = request.Items;
+            return order;
+        }
+    }
+}
+`;
+
+      const identifiers = parser.parseCodeStructure(code, 'OrderService.cs');
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'OrderService',
+          type: 'class'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'CalculateTotal',
+          type: 'function'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'ProcessOrderAsync',
+          type: 'function'
+        })
+      );
+    });
+
+    it('should get primary identifiers for affected lines', () => {
+      const code = `
+namespace OrderProcessing.Services
+{
+    public class OrderService : IOrderService
+    {
+        public decimal CalculateTotal(List<OrderItem> items)
+        {
+            return items.Sum(i => i.Price * i.Quantity);
+        }
+        
+        public async Task<Order> ProcessOrderAsync(CreateOrderRequest request)
+        {
+            var order = new Order();
+            return order;
+        }
+    }
+}
+`;
+
+      const codeStructure = parser.parseCodeStructure(code, 'OrderService.cs');
+      const identifiers = parser.getPrimaryIdentifiers('OrderService.cs', [6, 11], codeStructure);
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'CalculateTotal',
+          type: 'function'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'ProcessOrderAsync',
+          type: 'function'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'OrderService',
+          type: 'class'
+        })
+      );
+    });
+
+    it('should filter out C# language keywords and reserved words', () => {
+      const codeWithKeywords = `
+namespace TestNamespace
+{
+    public class TestClass
+    {
+        public void ValidMethod()
+        {
+            if (true) { }
+            for (int i = 0; i < 10; i++) { }
+            while (condition) { }
+            foreach (var item in items) { }
+            switch (value) { case 1: break; }
+            using (var resource = GetResource()) { }
+            try { } catch (Exception ex) { }
+            
+            // These should look like method calls but are keywords
+            if ();
+            for ();
+            while ();
+        }
+        
+        // Property accessors that should be filtered
+        public int Property { get; set; }
+        
+        // Event accessors that should be filtered  
+        public event EventHandler SomeEvent { add { } remove { } }
+    }
+}
+`;
+
+      const identifiers = parser.parseCodeStructure(codeWithKeywords, 'TestClass.cs');
+      
+      // Should find the valid class and method
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'TestClass',
+          type: 'class'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'ValidMethod',
+          type: 'function'
+        })
+      );
+      
+      // Should NOT find any keywords as methods
+      const methodNames = identifiers.filter(i => i.type === 'function').map(i => i.name);
+      const forbiddenKeywords = ['if', 'for', 'while', 'foreach', 'switch', 'using', 'try', 'catch', 'get', 'set', 'add', 'remove'];
+      
+      forbiddenKeywords.forEach(keyword => {
+        expect(methodNames).not.toContain(keyword);
+      });
+    });
+
+    it('should handle edge cases with keyword-like method names', () => {
+      const code = `
+public class EdgeCaseClass  
+{
+    // These are valid method names that contain keywords but aren't keywords themselves
+    public void GetUserData() { }
+    public void SetConfiguration() { }  
+    public void FormatText() { }
+    public void WhileProcessing() { }
+    public void IfNotNull() { }
+    
+    // Valid methods with "new" keyword in signature
+    public User CreateNewUser() { }
+}
+`;
+
+      const identifiers = parser.parseCodeStructure(code, 'EdgeCaseClass.cs');
+      
+      const methodNames = identifiers.filter(i => i.type === 'function').map(i => i.name);
+      
+      // These should be found as they are valid method names
+      expect(methodNames).toContain('GetUserData');
+      expect(methodNames).toContain('SetConfiguration');
+      expect(methodNames).toContain('FormatText');
+      expect(methodNames).toContain('WhileProcessing');
+      expect(methodNames).toContain('IfNotNull');
+      expect(methodNames).toContain('CreateNewUser');
+      
+      // But pure keywords should not be found
+      expect(methodNames).not.toContain('get');
+      expect(methodNames).not.toContain('set');
+      expect(methodNames).not.toContain('for');
+      expect(methodNames).not.toContain('while');
+      expect(methodNames).not.toContain('if');
+      expect(methodNames).not.toContain('new');
+    });
+  });
+
+  describe('RazorParser', () => {
+    let parser: RazorParser;
+
+    beforeEach(() => {
+      parser = new RazorParser();
+    });
+
+    it('should extract Razor component names correctly', () => {
+      const razorCode = `
+@page "/user-profile/{UserId}"
+@using MyApp.Models
+
+<div class="user-profile">
+    <h2>User Profile</h2>
+</div>
+
+@code {
+    [Parameter] public string UserId { get; set; }
+    private UserModel User { get; set; }
+    
+    protected override async Task OnInitializedAsync()
+    {
+        User = await UserService.GetUserAsync(UserId);
+    }
+}
+`;
+
+      const codeStructure = parser.parseCodeStructure(razorCode, 'UserProfile.razor');
+      
+      // Razor parser treats the whole file as one component
+      expect(codeStructure).toHaveLength(1);
+      expect(codeStructure[0]).toEqual(
+        expect.objectContaining({
+          name: 'UserProfile',
+          type: 'class'
+        })
+      );
+    });
+
+    it('should get primary identifiers for Razor components', () => {
+      const razorCode = `
+@page "/test"
+<h1>Test Component</h1>
+@code {
+    private void TestMethod() {
+        // test
+    }
+}
+`;
+
+      const codeStructure = parser.parseCodeStructure(razorCode, 'TestComponent.razor');
+      const identifiers = parser.getPrimaryIdentifiers('TestComponent.razor', [1, 5], codeStructure);
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'TestComponent',
+          type: 'component'
+        })
+      );
+    });
+  });
+
+  describe('TypeScriptParser', () => {
+    let parser: TypeScriptParser;
+
+    beforeEach(() => {
+      parser = new TypeScriptParser();
+    });
+
+    it('should extract TypeScript functions, classes, and interfaces correctly', () => {
+      const tsCode = `
+export interface UserData {
+    id: number;
+    name: string;
+    email: string;
+}
+
+export class UserService {
+    private readonly baseUrl: string;
+    
+    constructor(baseUrl: string) {
+        this.baseUrl = baseUrl;
+    }
+    
+    async getUser(id: number): Promise<UserData> {
+        const response = await fetch(\`\${this.baseUrl}/users/\${id}\`);
+        return response.json();
+    }
+}
+
+export function createDefaultUser(): UserData {
+    return {
+        id: 0,
+        name: '',
+        email: ''
+    };
+}
+`;
+
+      const identifiers = parser.parseCodeStructure(tsCode, 'UserService.ts');
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'UserData',
+          type: 'interface'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'UserService',
+          type: 'class'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'getUser',
+          type: 'function'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'createDefaultUser',
+          type: 'function'
+        })
+      );
+    });
+
+    it('should get primary identifiers for TypeScript code', () => {
+      const code = `
+export class ApiService {
+    async getData(): Promise<Data> {
+        // implementation
+    }
+    
+    async saveData(data: Data): Promise<void> {
+        // implementation  
+    }
+}
+`;
+
+      const codeStructure = parser.parseCodeStructure(code, 'ApiService.ts');
+      const identifiers = parser.getPrimaryIdentifiers('ApiService.ts', [3, 7], codeStructure);
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'getData',
+          type: 'function'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'saveData', 
+          type: 'function'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'ApiService',
+          type: 'class'
+        })
+      );
+    });
+
+    it('should filter out TypeScript/JavaScript language keywords', () => {
+      const codeWithKeywords = `
+export class TestClass {
+    validMethod(): void {
+        if (true) { }
+        for (let i = 0; i < 10; i++) { }
+        while (condition) { }
+        switch (value) { case 1: break; }
+        try { } catch (error) { }
+        with (someObject) { }
+        
+        // These should look like method calls but are keywords
+        if();
+        for();
+        while();
+    }
+    
+    // Valid method that might look like a keyword
+    formatData(): string { return ''; }
+    switchMode(): void { }
+}
+
+// Valid functions
+export function processData() { }
+async function fetchUserData() { }
+
+// Interface
+export interface UserInterface {
+    name: string;
+}
+`;
+
+      const identifiers = parser.parseCodeStructure(codeWithKeywords, 'test.ts');
+      
+      // Should find valid identifiers
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'TestClass',
+          type: 'class'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'validMethod',
+          type: 'function'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'processData',
+          type: 'function'
+        })
+      );
+      
+      expect(identifiers).toContainEqual(
+        expect.objectContaining({
+          name: 'UserInterface',
+          type: 'interface'
+        })
+      );
+      
+      // Should NOT find keywords as methods
+      const methodNames = identifiers.filter(i => i.type === 'function').map(i => i.name);
+      const forbiddenKeywords = ['if', 'for', 'while', 'switch', 'try', 'catch', 'with'];
+      
+      forbiddenKeywords.forEach(keyword => {
+        expect(methodNames).not.toContain(keyword);
+      });
+      
+      // But should find valid method names that contain keywords
+      expect(methodNames).toContain('formatData');
+      expect(methodNames).toContain('switchMode');
+    });
+
+    it('should handle additional common keywords that might be parsed incorrectly', () => {
+      const code = `
+export class EdgeCaseClass {
+    // These should be parsed as methods
+    newUser(): User { return new User(); }
+    deleteItem(): void { }
+    returnValue(): string { return 'test'; }
+    breakConnection(): void { }
+    continueProcessing(): void { }
+    
+    // Test method parsing with common return types that shouldn't be confused
+    async getAsync(): Promise<any> { }
+    static create(): EdgeCaseClass { }
+}
+
+// Function declarations
+export function newFunction() { }
+export function deleteData() { }
+`;
+
+      const identifiers = parser.parseCodeStructure(code, 'test.ts');
+      
+      const methodNames = identifiers.filter(i => i.type === 'function').map(i => i.name);
+      
+      // These are valid method names that happen to contain keywords
+      expect(methodNames).toContain('newUser');
+      expect(methodNames).toContain('deleteItem'); 
+      expect(methodNames).toContain('returnValue');
+      expect(methodNames).toContain('breakConnection');
+      expect(methodNames).toContain('continueProcessing');
+      expect(methodNames).toContain('getAsync');
+      expect(methodNames).toContain('create');
+      expect(methodNames).toContain('newFunction');
+      expect(methodNames).toContain('deleteData');
+      
+      // These keywords should never be parsed as method names
+      const neverAllowed = ['new', 'delete', 'return', 'break', 'continue', 'class', 'function', 'export', 'import'];
+      neverAllowed.forEach(keyword => {
+        expect(methodNames).not.toContain(keyword);
+      });
+    });
+  });
+});
