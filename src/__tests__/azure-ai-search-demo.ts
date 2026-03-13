@@ -790,7 +790,7 @@ class DemoAzureAISearchService extends AzureAISearchService {
   }
 
   private generateMockReferences(identifier: string, language: string) {
-    const mockFiles = {
+    const mockFiles: Record<string, string[]> = {
       'C#': ['Services/UserService.cs', 'Controllers/UserController.cs', 'Tests/UserServiceTests.cs'],
       'Razor': ['Components/UserProfile.razor', 'Pages/Users.razor', 'Shared/UserCard.razor'],
       'TypeScript': ['utils/userUtils.ts', 'api/userApi.ts', 'components/UserForm.tsx'],
@@ -799,7 +799,7 @@ class DemoAzureAISearchService extends AzureAISearchService {
 
     const files = mockFiles[language] || mockFiles['TypeScript'];
     
-    return files.slice(0, 2).map((file, index) => ({
+    return files.slice(0, 2).map((file: string, index: number) => ({
       filepath: file,
       content: `Example usage of ${identifier} in ${file}`,
       title: `${identifier} Reference`,
@@ -860,7 +860,7 @@ export async function runAzureAISearchDemo(): Promise<void> {
           console.log(`      📊 Found ${result.length} impacts:`);
           result.forEach((impact, idx) => {
             console.log(`         ${idx + 1}. ${impact.identifier} (${impact.type}) - ${impact.totalReferences} references`);
-            impact.references.slice(0, 2).forEach(ref => {
+            impact.references.slice(0, 2).forEach((ref: any) => {
               console.log(`            📍 ${ref.filepath}:${ref.startLine}-${ref.endLine} (score: ${ref.score.toFixed(2)})`);
             });
           });

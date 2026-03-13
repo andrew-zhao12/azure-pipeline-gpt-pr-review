@@ -29,9 +29,10 @@ export class AzureAISearchService {
   public async analyzeCodeImpact(
     filePath: string,
     fileDiff: string,
-    fileContent: string
+    fileContent: string,
+    targetBranch: string
   ): Promise<ImpactAnalysisResult[]> {
-    return this.analyzer.analyzeCodeImpact(filePath, fileDiff, fileContent);
+    return this.analyzer.analyzeCodeImpact(filePath, fileDiff, fileContent, targetBranch);
   }
 
   /**

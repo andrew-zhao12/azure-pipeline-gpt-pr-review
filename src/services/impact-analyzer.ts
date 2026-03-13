@@ -20,7 +20,8 @@ export class ImpactAnalyzer {
   public async analyzeCodeImpact(
     filePath: string,
     fileDiff: string,
-    fileContent: string
+    fileContent: string,
+    targetBranch: string
   ): Promise<ImpactAnalysisResult[]> {
     try {
       console.log(`🔍 Analyzing code impact for: ${filePath}`);
@@ -51,8 +52,7 @@ export class ImpactAnalyzer {
           console.log(`🔍 Searching for usage of ${element.type}: ${element.name}`);
         }
         try {
-          const references = await this.searchForIdentifier(element.name, element.type, filePath);
-          
+          const references = await this.searchForIdentifier(element.name, element.type, filePath, targetBranch);
           if (references.length > 0) {
             results.push({
               identifier: element.name,
@@ -82,7 +82,8 @@ export class ImpactAnalyzer {
   private async searchForIdentifier(
     identifier: string,
     type: string,
-    excludeFilePath: string
+    excludeFilePath: string,
+    targetBranch: string
   ) {
     // Reduce search logging verbosity
     if (identifier.length <= 3) {
@@ -90,7 +91,7 @@ export class ImpactAnalyzer {
     }
     
     try {
-      const searchBody = SearchQueryBuilder.buildSearchBody(identifier, type, excludeFilePath);
+      const searchBody = SearchQueryBuilder.buildSearchBody(identifier, type, excludeFilePath, targetBranch);
       // Only log queries for short identifiers to reduce noise
       if (identifier.length <= 3) {
         console.log(`🔎 Search query for ${identifier}: ${searchBody.search}`);

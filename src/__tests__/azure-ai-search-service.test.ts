@@ -179,7 +179,8 @@ index 2345678..bcdefgh 100644
       const result = await service.analyzeCodeImpact(
         'src/Services/OrderService.cs',
         dummyDiff,
-        'public class OrderService { public decimal calculateTotal() { return 0; } }'
+        'public class OrderService { public decimal calculateTotal() { return 0; } }',
+        'main'
       );
 
       expect(result).toBeDefined();
@@ -213,28 +214,29 @@ diff --git a/src/Services/UserService.cs b/src/Services/UserService.cs
  }
 `;
 
-      await service.analyzeCodeImpact(
+        await service.analyzeCodeImpact(
         'src/Services/UserService.cs',
         dummyDiff,
         `using System.Threading.Tasks;
-using System;
+    using System;
 
-namespace Services
-{
-    public class UserService : IUserService
+    namespace Services
     {
+      public class UserService : IUserService
+      {
         public async Task<User> GetUserAsync(int id)
         {
-            return await _repository.GetUserAsync(id);
+          return await _repository.GetUserAsync(id);
         }
         
         public async Task<User> CreateUserAsync(User user)
         {
-            return await _repository.CreateAsync(user);
+          return await _repository.CreateAsync(user);
         }
-    }
-}`
-      );
+      }
+    }`,
+        'main'
+        );
 
       // Check that fetch was called
       expect(mockFetch).toHaveBeenCalled();
@@ -256,24 +258,27 @@ diff --git a/src/utils/dateHelper.ts b/src/utils/dateHelper.ts
          return range.start <= range.end;
 `;
 
-      await service.analyzeCodeImpact(
-        'src/utils/dateHelper.ts',
-        tsDiff,
-        `export interface DateRange {
-    start: Date;
-    end: Date;
-}
-
-export function formatDateRange(range: DateRange): string {
-    return \`\${range.start.toISOString()} - \${range.end.toISOString()}\`;
-}
-
-export class DateUtility {
-    static isValidRange(range: DateRange): boolean {
-        return range.start <= range.end;
-    }
-}`
-      );
+        await service.analyzeCodeImpact(
+          'src/utils/dateHelper.ts',
+          tsDiff,
+          [
+            'export interface DateRange {',
+            '  start: Date;',
+            '  end: Date;',
+            '}',
+            '',
+            'export function formatDateRange(range: DateRange): string {',
+            '  return `${range.start.toISOString()} - ${range.end.toISOString()}`;',
+            '}',
+            '',
+            'export class DateUtility {',
+            '  static isValidRange(range: DateRange): boolean {',
+            '    return range.start <= range.end;',
+            '  }',
+            '}'
+          ].join('\n'),
+          'main'
+        );
 
       expect(mockFetch).toHaveBeenCalled();
     });
@@ -310,7 +315,8 @@ new file mode 100644
       await service.analyzeCodeImpact(
         'src/Components/UserProfile.razor',
         razorDiff,
-        '@page "/user-profile/{UserId}" <div>User Profile</div> @code { public string UserId { get; set; } }'
+        '@page "/user-profile/{UserId}" <div>User Profile</div> @code { public string UserId { get; set; } }',
+        'main'
       );
 
       expect(mockFetch).toHaveBeenCalled();
@@ -344,7 +350,8 @@ diff --git a/src/Controllers/OrderController.cs b/src/Controllers/OrderControlle
       const result = await service.analyzeCodeImpact(
         'src/Controllers/OrderController.cs',
         complexDiff,
-        'public class OrderController { public async Task<ActionResult<Order>> CreateOrder(CreateOrderRequest request) { return null; } }'
+        'public class OrderController { public async Task<ActionResult<Order>> CreateOrder(CreateOrderRequest request) { return null; } }',
+        'main'
       );
 
       expect(Array.isArray(result)).toBe(true);
@@ -365,7 +372,8 @@ diff --git a/src/Controllers/OrderController.cs b/src/Controllers/OrderControlle
       const result = await service.analyzeCodeImpact(
         'src/test.cs',
         'simple diff',
-        'public class Test { }'
+        'public class Test { }',
+        'main'
       );
 
       expect(Array.isArray(result)).toBe(true);
@@ -391,7 +399,8 @@ diff --git a/src/Controllers/OrderController.cs b/src/Controllers/OrderControlle
       const result = await timeoutService.analyzeCodeImpact(
         'src/test.cs',
         'test diff',
-        'public class Test { }'
+        'public class Test { }',
+        'main'
       );
 
       expect(Array.isArray(result)).toBe(true);
@@ -401,7 +410,8 @@ diff --git a/src/Controllers/OrderController.cs b/src/Controllers/OrderControlle
       const result = await service.analyzeCodeImpact(
         'src/mixed.cs',
         'mixed language diff',
-        'public class Mixed { }'
+        'public class Mixed { }',
+        'main'
       );
 
       expect(Array.isArray(result)).toBe(true);

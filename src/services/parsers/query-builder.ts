@@ -45,19 +45,19 @@ export class SearchQueryBuilder {
    * Builds search body for Azure AI Search request
    */
   public static buildSearchBody(
-    identifier: string, 
-    type: string, 
-    excludeFilePath: string, 
+    identifier: string,
+    type: string,
+    excludeFilePath: string,
+    targetBranch: string,
     top: number = 50
   ) {
     const searchQuery = this.buildSearchQuery(identifier, type);
-    
     return {
       search: searchQuery,
       select: 'filepath,content,title,startLine,endLine,branch,language',
       top: top,
       highlight: 'content,title',
-      filter: `filepath ne '${excludeFilePath.replace(/'/g, "''")}'`, // Exclude the file being changed
+      filter: `filepath ne '${excludeFilePath.replace(/'/g, "''")}' and branch eq '${targetBranch.replace(/'/g, "''")}'`,
     };
   }
 }

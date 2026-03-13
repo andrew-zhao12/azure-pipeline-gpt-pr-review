@@ -1,3 +1,7 @@
+// Only review files with these extensions
+const DEFAULT_INCLUDE_EXTS = new Set([
+  ".cs", ".csproj", ".razor", ".cshtml", ".resx", ".sql", ".sqlproj", ".js", ".css"
+]);
 import * as tl from "azure-pipelines-task-lib/task";
 import { Agent } from 'node:https';
 import { AdvancedPRReviewAgent, PRReviewStateType } from '../agents/pr-review-agent';
@@ -175,6 +179,12 @@ export class ReviewOrchestrator {
       targetBranch;
 
     for (const filePath of changedFiles) {
+      // Only review files with allowed extensions
+      const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+      if (!DEFAULT_INCLUDE_EXTS.has(ext)) {
+        console.log(`⏭️  Skipping file due to extension: ${filePath}`);
+        continue;
+      }
       try {
         console.log(`🔍 Reviewing file: ${filePath}`);
 
@@ -266,7 +276,8 @@ export class ReviewOrchestrator {
             const impactAnalysis = await this.searchService.analyzeCodeImpact(
               filePath,
               fileDiff,
-              fileContent.content || ''
+              fileContent.content || '',
+              prDetails.targetRefName
             );
             
             if (impactAnalysis.length > 0) {
