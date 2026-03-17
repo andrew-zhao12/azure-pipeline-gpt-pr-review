@@ -2,7 +2,7 @@
     "manifestVersion": 1,
     "id": "AerosealAIReviewer",
     "name": "Aeroseal AI Reviewer",
-    "version": "3.1.1",
+    "version": "3.1.3",
     "publisher": "Aeroseal",
     "galleryFlags": [
         "Private",

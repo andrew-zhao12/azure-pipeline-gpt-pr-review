@@ -1,5 +1,6 @@
 import { Agent } from 'node:https';
 import { AzureAISearchConfig, CodeReference, SearchBody } from '../types/azure-search';
+import { fetch } from 'undici';
 
 /**
  * Core Azure AI Search client for handling raw search operations

@@ -730,14 +730,14 @@ class DemoAzureAISearchService extends AzureAISearchService {
   }
 
   // Override the analyzeCodeImpact to show demo workflow
-  public async analyzeCodeImpact(filePath: string, fileDiff: string, fileContent: string) {
+  public async analyzeCodeImpact(filePath: string, fileDiff: string, fileContent: string, targetBranch: string = "main") {
     console.log(`\\n🔍 [${this.scenario}] Analyzing: ${filePath}`);
     console.log(`   📝 Diff length: ${fileDiff.length} characters`);
     console.log(`   📄 Content length: ${fileContent.length} characters`);
     
     // Call the real method but catch any errors since we don't have real Azure AI Search
     try {
-      return await super.analyzeCodeImpact(filePath, fileDiff, fileContent);
+      return await super.analyzeCodeImpact(filePath, fileDiff, fileContent, targetBranch);
     } catch (error) {
       // Return demo results on error (expected since we don't have real service)
       return this.generateDemoResults(filePath, fileDiff);
@@ -850,7 +850,7 @@ export async function runAzureAISearchDemo(): Promise<void> {
         
         console.log(`\\n   🔄 Processing: ${filePath}`);
         
-        const result = await demoService.analyzeCodeImpact(filePath, scenario.diff, fileContent);
+        const result = await demoService.analyzeCodeImpact(filePath, scenario.diff, fileContent, "main");
         
         if (result && result.length > 0) {
           totalImpacts += result.length;

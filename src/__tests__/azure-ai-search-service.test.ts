@@ -3,6 +3,12 @@ import { PullRequestChange } from '../types/azure-devops';
 import { CodeElement, AzureAISearchConfig } from '../types/azure-search';
 import { Agent } from 'node:https';
 
+// Mock undici fetch
+jest.mock('undici', () => ({
+  fetch: jest.fn()
+}));
+import { fetch } from 'undici';
+
 describe('AzureAISearchService', () => {
   let service: AzureAISearchService;
   let mockFetch: jest.MockedFunction<typeof fetch>;
@@ -38,8 +44,10 @@ describe('AzureAISearchService', () => {
   };
 
   beforeEach(() => {
-    mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
-    (global as any).fetch = mockFetch;
+    // Mock the undici fetch
+    const { fetch } = require('undici');
+    mockFetch = fetch as jest.MockedFunction<typeof fetch>;
+    mockFetch.mockClear();
     
     // Mock successful search response
     mockFetch.mockResolvedValue(mockSearchResponse as any);
