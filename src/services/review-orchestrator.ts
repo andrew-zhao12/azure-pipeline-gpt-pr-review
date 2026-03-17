@@ -194,15 +194,17 @@ export class ReviewOrchestrator {
           continue;
         }
 
-        // Validate that the file actually exists in the current PR
-        const fileExists = await this.azureDevOpsService.validateFileExists(filePath);
-        if (!fileExists) {
-          console.log(`⏭️  Skipping file that doesn't exist in current PR: ${filePath}`);
+        // Validate that the file exists in either target or source branch
+        const targetBranchExists = await this.azureDevOpsService.validateFileExists(filePath, targetBranch);
+        const sourceBranchExists = !targetBranchExists ? await this.azureDevOpsService.validateFileExists(filePath, normalizedSource) : true;
+        
+        if (!targetBranchExists && !sourceBranchExists) {
+          console.log(`⏭️  Skipping file that doesn't exist in either target or source branch: ${filePath}`);
           continue;
         }
 
         // Get file content and diff with line numbers
-        const fileContent = await this.azureDevOpsService.getFileContent(filePath, targetBranch);
+        const fileContent = await this.azureDevOpsService.getFileContent(filePath, targetBranch, normalizedSource);
 
         // Detect and skip folder-like responses (Azure DevOps returns a JSON tree for folders)
         const rawContentPreview = (fileContent.content || '').substring(0, 200);
@@ -270,9 +272,10 @@ export class ReviewOrchestrator {
         }
 
         // Get codebase impact analysis from Azure AI Search if configured
-        if (this.searchService) {
+        // Only analyze impact for existing files (modified/deleted), not new files
+        if (this.searchService && targetBranchExists) {
           try {
-            console.log(`🔍 Analyzing codebase impact for ${filePath}...`);
+            console.log(`🔍 Analyzing codebase impact for modified file: ${filePath}...`);
             const impactAnalysis = await this.searchService.analyzeCodeImpact(
               filePath,
               fileDiff,
@@ -290,6 +293,8 @@ export class ReviewOrchestrator {
           } catch (error) {
             console.warn(`⚠️ Failed to analyze codebase impact for ${filePath}:`, error);
           }
+        } else if (this.searchService && !targetBranchExists) {
+          console.log(`ℹ️ Skipping impact analysis for new file: ${filePath} (no existing codebase dependencies)`);
         }
 
         // Run the review agent

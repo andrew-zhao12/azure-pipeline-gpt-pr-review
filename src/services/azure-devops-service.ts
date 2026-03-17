@@ -1082,25 +1082,30 @@ export class AzureDevOpsService {
     }
   }
 
-  public async validateFileExists(filePath: string): Promise<boolean> {
-    console.log(`🔍 Validating file exists: ${filePath}`);
+  public async validateFileExists(filePath: string, branch?: string): Promise<boolean> {
+    console.log(`🔍 Validating file exists: ${filePath} ${branch ? `on branch ${branch}` : ''}`);
     
     try {
       // Clean up the file path - ensure it starts with /
       const cleanPath = filePath.startsWith('/') ? filePath : '/' + filePath;
       
       // Try to get file info without content
-      const url = `${this.collectionUri}${this.projectId}/_apis/git/repositories/${this.repositoryName}/items?path=${encodeURIComponent(cleanPath)}&api-version=7.0`;
+      let url = `${this.collectionUri}${this.projectId}/_apis/git/repositories/${this.repositoryName}/items?path=${encodeURIComponent(cleanPath)}&api-version=7.0`;
+      
+      // If branch is specified, add version descriptor
+      if (branch) {
+        url += `&versionDescriptor.version=${encodeURIComponent(branch)}&versionDescriptor.versionType=branch`;
+      }
       
       const response = await this.safeFetch(url, {
         headers: this.getAuthHeaders()
       });
 
       if (response.ok) {
-        console.log(`✅ File exists: ${cleanPath}`);
+        console.log(`✅ File exists: ${cleanPath} ${branch ? `on branch ${branch}` : ''}`);
         return true;
       } else {
-        console.log(`❌ File does not exist: ${cleanPath} (${response.status})`);
+        console.log(`❌ File does not exist: ${cleanPath} ${branch ? `on branch ${branch}` : ''} (${response.status})`);
         return false;
       }
     } catch (error) {
@@ -1109,7 +1114,7 @@ export class AzureDevOpsService {
     }
   }
 
-  public async getFileContent(filePath: string, targetBranch: string): Promise<FileContent> {
+  public async getFileContent(filePath: string, targetBranch: string, sourceBranch?: string): Promise<FileContent> {
     console.log(`🔍 Getting file content for: ${filePath}`);
     console.log(`🔍 Target branch: ${targetBranch}`);
     
@@ -1117,14 +1122,39 @@ export class AzureDevOpsService {
     const cleanPath = filePath.startsWith('/') ? filePath : '/' + filePath;
     console.log(`🔍 Cleaned file path: ${cleanPath}`);
     
-    const url = `${this.collectionUri}${this.projectId}/_apis/git/repositories/${this.repositoryName}/items?path=${encodeURIComponent(cleanPath)}&versionDescriptor.version=${targetBranch}&api-version=7.0`;
+    // First try target branch, then source branch if file doesn't exist in target
+    let url = `${this.collectionUri}${this.projectId}/_apis/git/repositories/${this.repositoryName}/items?path=${encodeURIComponent(cleanPath)}&versionDescriptor.version=${targetBranch}&api-version=7.0`;
+    let branchToUse = targetBranch;
+    
+    // Check if this is a new file by trying target branch first
+    const targetResponse = await this.safeFetch(url, {
+      headers: this.getAuthHeaders()
+    });
+    
+    if (!targetResponse.ok && sourceBranch) {
+      // File doesn't exist in target branch, try source branch (for new files)
+      console.log(`📝 File not found in target branch, checking source branch: ${sourceBranch}`);
+      url = `${this.collectionUri}${this.projectId}/_apis/git/repositories/${this.repositoryName}/items?path=${encodeURIComponent(cleanPath)}&versionDescriptor.version=${sourceBranch}&api-version=7.0`;
+      branchToUse = sourceBranch;
+    } else if (targetResponse.ok) {
+      // File exists in target branch, use that response
+      console.log(`📝 Using file content from target branch: ${targetBranch}`);
+    }
+    
     console.log(`🔍 File content URL: ${url}`);
 
-    // Use safeFetch for consistent retry/error logging
-    const response = await this.safeFetch(url, {
-      headers: this.getAuthHeaders(),
-      agent: this.httpsAgent
-    });
+    // Make the actual fetch request
+    let response;
+    if (!targetResponse.ok && sourceBranch) {
+      // Need to make a new request for source branch
+      response = await this.safeFetch(url, {
+        headers: this.getAuthHeaders(),
+        agent: this.httpsAgent
+      });
+    } else {
+      // Use the target branch response we already have
+      response = targetResponse;
+    }
 
     if (!response.ok) {
       // Try to get error details
